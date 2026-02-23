@@ -1,0 +1,52 @@
+# ═══════════════════════════════════════════════════════
+#  Ilija Public Edition – Python-Abhängigkeiten
+#  Installieren: pip install -r requirements.txt
+# ═══════════════════════════════════════════════════════
+
+# ── Web-Framework ────────────────────────────────────────
+flask>=3.0.0
+flask-cors>=4.0.0
+werkzeug>=3.0.0
+
+# ── Umgebung ─────────────────────────────────────────────
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# ── KI-Provider ──────────────────────────────────────────
+anthropic>=0.40.0
+openai>=1.54.0
+ollama>=0.1.0
+google-generativeai>=0.8.0
+
+# ── Langzeitgedächtnis ───────────────────────────────────
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+
+# ── Telegram ─────────────────────────────────────────────
+python-telegram-bot>=20.0
+
+# ── WhatsApp Web ─────────────────────────────────────────
+selenium>=4.0.0
+webdriver-manager>=4.0.0
+
+# ── Dokument-Verarbeitung ────────────────────────────────
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+pdfplumber>=0.9.0
+PyPDF2>=3.0.0
+python-docx>=1.0.0
+openpyxl>=3.1.0
+python-pptx>=0.6.0
+
+# ── Bild-OCR (für Dokument-Scans) ────────────────────────
+Pillow>=10.0.0
+# pytesseract>=0.3.10  # Benötigt Tesseract-OCR: sudo apt install tesseract-ocr tesseract-ocr-deu
+
+# ── Optional: HEIC-Bilder (iPhone-Fotos) ─────────────────
+# pillow-heif>=0.13.0
+
+# ── Optional: OpenDocument-Formate ───────────────────────
+# odfpy>=1.4.0
+
+# ── Optional: Spracherkennung ────────────────────────────
+# openai-whisper  # Benötigt PyTorch (~2 GB)
