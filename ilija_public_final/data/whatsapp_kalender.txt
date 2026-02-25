@@ -1,0 +1,18 @@
+# ══════════════════════════════════════════════════════
+# WhatsApp-Kalender – Ilija Terminverwaltung
+# ══════════════════════════════════════════════════════
+#
+# VERFÜGBARKEIT: Wann bist du grundsätzlich erreichbar?
+# Format: [VERFÜGBAR] [Tag oder Tage] [HH:MM-HH:MM]
+#
+[VERFÜGBAR] [Montag-Freitag] [09:00-12:00]
+[VERFÜGBAR] [Dienstag] [15:00-17:00]
+[GESPERRT]  [Samstag-Sonntag]
+#
+# TERMINE: Werden automatisch von Ilija eingetragen.
+# Format: [YYYY-MM-DD] [Wochentag] [HH:MM] [Kontakt] Titel
+# Beispiel:
+# [2026-03-18] [Dienstag] [15:00] [Karsten] Kaffee
+#
+# ── Eingetragene Termine ────────────────────────────
+

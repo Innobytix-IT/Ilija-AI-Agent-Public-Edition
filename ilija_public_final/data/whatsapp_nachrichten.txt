@@ -1,0 +1,8 @@
+# ══════════════════════════════════════════════════════
+# WhatsApp-Nachrichten – Hinterlassene Nachrichten
+# ══════════════════════════════════════════════════════
+# Hier speichert Ilija automatisch Nachrichten die
+# WhatsApp-Kontakte explizit hinterlassen haben.
+# Format: [DATUM UHRZEIT] Von: [Kontakt] | Nachricht: [Text]
+#
+# ── Hinterlassene Nachrichten ───────────────────────
