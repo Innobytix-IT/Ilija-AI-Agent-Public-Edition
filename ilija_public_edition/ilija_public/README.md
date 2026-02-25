@@ -9,7 +9,7 @@
 
 - **🗂 DMS** – KI-gestütztes Dokumentenmanagementsystem mit Web-GUI
 - **🧠 Langzeitgedächtnis** – ChromaDB, dauerhaft auch nach Neustart
-- **💬 WhatsApp** – überwacht Chats, vereinbart Termine, nimmt Nachrichten an
+- **💬 WhatsApp** – überwacht Chats, vereinbart Termine in von Ihnen definierten Zeitfenstern und nimmt Nachrichten für Sie entgegen 
 - **📱 Telegram** – vollständige Fernsteuerung, Dokumente per App senden
 - **🔍 Internet-Recherche** – DuckDuckGo, Wikipedia, Webseiten lesen
 - **🌐 Web-Interface** – Browser-Chat mit Datei-Upload & DMS-Integration
