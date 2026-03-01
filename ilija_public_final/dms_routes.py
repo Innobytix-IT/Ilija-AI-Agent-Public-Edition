@@ -261,6 +261,24 @@ def register_dms_routes(app):
         os.remove(pfad)
         return jsonify({"ok": True})
 
+    # ── Verschieben ───────────────────────────────────────────
+    @app.route("/api/dms/move", methods=["POST"])
+    def dms_move():
+        data                = request.get_json() or {}
+        pfad                = data.get("pfad", "").strip()
+        neue_kategorie      = data.get("kategorie", "").strip()
+        neue_unterkategorie = data.get("unterkategorie", "").strip()
+        passwort            = data.get("passwort", "")
+        if not pfad or not neue_kategorie:
+            return jsonify({"ok": False, "error": "Pfad und Kategorie erforderlich"}), 400
+        try:
+            from skills.dms import dms_verschieben
+            return jsonify(dms_verschieben(pfad, neue_kategorie, neue_unterkategorie, passwort))
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+
+
     # ── Settings GET ──────────────────────────────────────────
     @app.route("/api/dms/settings", methods=["GET"])
     def dms_settings_get():
