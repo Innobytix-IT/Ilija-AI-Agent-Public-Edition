@@ -16,7 +16,7 @@ from pathlib import Path
 from datetime import datetime
 
 # ── Konfiguration ─────────────────────────────────────────────
-DMS_BASE_DEFAULT = os.path.abspath("data/dms")
+DMS_BASE_DEFAULT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "dms")
 
 def _get_config() -> dict:
     config_path = os.path.join(DMS_BASE_DEFAULT, "dms_config.json")
@@ -247,32 +247,34 @@ def _ki_kategorisiere(filename: str, text: str, provider) -> dict:
     jahr_aktuell  = str(datetime.now().year)
 
     # WICHTIG: Prompt enthält KEINE Platzhalter mehr die kopiert werden könnten
-    prompt = f"""Analysiere dieses Dokument und kategorisiere es.
+    prompt = f"""Analysiere dieses Dokument und kategorisiere es STRENG nach dem Inhalt.
 
 Originaldateiname: {filename}
-Dokumenteninhalt:
+Dokumenteninhalt (extrahiert via OCR):
 ---
-{text[:2000] if text else f'[Kein Text extrahierbar. Datei: {filename}]'}
+{text[:2000] if text and len(text.strip()) > 10 else '[KEIN LESBARER TEXT GEFUNDEN]'}
 ---
 
 Antworte in GENAU diesem Format (4 Teile, getrennt durch |):
 [HAUPTKATEGORIE]|[UNTERKATEGORIE]|[JAHRESZAHL]|[BESCHREIBENDER_DATEINAME{endung}]
 
-Beispiele wie eine korrekte Antwort aussieht:
-Rechnungen|Telekom|2024|Telekom_Rechnung_Januar_2024{endung}
-Versicherung|HUK-Coburg|2023|KFZ_Versicherungspolice_2023{endung}
-Steuern|Finanzamt|2025|Einkommensteuerbescheid_2025{endung}
-Medizin|Zahnarzt|2024|Zahnarztrechnung_Praxis_Mueller{endung}
-Privat|Familie|{jahr_aktuell}|Foto_Urlaub_Sommer{endung}
+REGELN FÜR DIE KATEGORISIERUNG:
+1. Wenn der 'Dokumenteninhalt' oben leer ist oder nur wirre Zeichen enthält, antworte UNBEDINGT mit:
+   Unsortiert|Allgemein|{jahr_aktuell}|Unbekanntes_Dokument_{datetime.now().strftime('%H%M%S')}{endung}
 
-Regeln:
-- HAUPTKATEGORIE: Rechnungen / Verträge / Versicherung / Steuern / Behörden / Medizin / Privat / Finanzen / Arbeit / Immobilien / Fahrzeuge / Bildung
-- UNTERKATEGORIE: Konkreter Absender oder Thema (Firmenname, Arzt, Behörde etc.)
-- JAHRESZAHL: 4-stellig aus dem Dokument, oder {jahr_aktuell} wenn nicht erkennbar
-- DATEINAME: Aussagekräftiger Name ohne Leerzeichen, mit Datum/Firma/Typ wenn erkennbar
-{"WICHTIG: Der Originaldateiname ist nichtssagend – erstelle UNBEDINGT einen neuen aussagekräftigen Namen aus dem Inhalt!" if ist_kryptisch else ""}
+2. RATE NIEMALS Kategorien wie 'Telekom', 'HUK-Coburg' oder 'Finanzamt', wenn diese Namen nicht EXPLIZIT im Text stehen. Diese Namen in den Beispielen dienen NUR der Format-Veranschaulichung!
 
-Nur die eine Zeile antworten, keine Erklärung davor oder danach."""
+3. Wenn du den Absender nicht sicher identifizieren kannst, setze als UNTERKATEGORIE 'Unbekannt'.
+
+4. HAUPTKATEGORIE-AUSWAHL: Rechnungen / Verträge / Versicherung / Steuern / Behörden / Medizin / Privat / Finanzen / Arbeit / Immobilien / Fahrzeuge / Bildung / Unsortiert
+
+Beispiel für ein erkanntes Dokument:
+Rechnungen|Amazon|2024|Amazon_Rechnung_Kaffeemaschine{endung}
+
+Beispiel für ein NICHT erkanntes Dokument:
+Unsortiert|Allgemein|{jahr_aktuell}|Nicht_erkennbares_Dokument{endung}
+
+Nur die eine Zeile antworten, keine Erklärung."""
 
     try:
         antwort = provider.chat([{"role": "user", "content": prompt}]).strip()
