@@ -143,7 +143,7 @@ ilija-public/
 ## 📋 Anforderungen
 
 - Python 3.10+
-- Ubuntu / Debian Linux oder macOS
+- Ubuntu / Debian Linux (oder macOS kommt später)
 - Google Chrome (für WhatsApp-Skill)
 - Mindestens ein API-Key **oder** lokales Ollama-Modell
 
@@ -268,7 +268,7 @@ Add documents:
 ## 📋 Requirements
 
 - Python 3.10+
-- Ubuntu / Debian Linux or macOS
+- Ubuntu / Debian Linux (or macOS comes later)
 - Google Chrome (for WhatsApp skill)
 - At least one API key **or** local Ollama model
 
