@@ -470,6 +470,81 @@ def dms_loeschen(pfad_relativ: str, passwort: str = "") -> str:
     return f"🗑️ Gelöscht: {pfad_relativ}"
 
 
+def dms_verschieben(pfad_relativ: str, neue_kategorie: str, neue_unterkategorie: str = "", passwort: str = "") -> dict:
+    """
+    Verschiebt eine archivierte Datei in eine andere Kategorie/Unterkategorie.
+    Behält den Dateinamen und das Jahr bei.
+    Gibt {"ok": True, "neuer_pfad": "..."} oder {"ok": False, "error": "..."} zurück.
+    """
+    _init_dirs()
+
+    if not _pruefen_passwort(passwort):
+        return {"ok": False, "error": "Falsches Passwort."}
+
+    archiv_dir = _get_archiv_dir()
+    voll_pfad  = os.path.abspath(os.path.join(archiv_dir, pfad_relativ))
+
+    if not voll_pfad.startswith(os.path.abspath(archiv_dir)):
+        return {"ok": False, "error": "Ungültiger Quellpfad."}
+
+    if not os.path.isfile(voll_pfad):
+        return {"ok": False, "error": "Datei nicht gefunden."}
+
+    # Kategorie säubern
+    neue_kategorie    = _sanitize(neue_kategorie)
+    neue_unterkategorie = _sanitize(neue_unterkategorie) if neue_unterkategorie else ""
+
+    # Jahr und Dateiname aus dem alten Pfad übernehmen
+    teile     = pfad_relativ.replace("\\", "/").split("/")
+    dateiname = teile[-1]
+    altes_jahr = teile[2] if len(teile) >= 4 else str(datetime.now().year)
+    alte_sub   = teile[1] if len(teile) >= 3 else "Allgemein"
+
+    # Unterkategorie: falls nicht angegeben, alte behalten
+    if not neue_unterkategorie:
+        neue_unterkategorie = alte_sub
+
+    ziel_ordner = os.path.join(archiv_dir, neue_kategorie, neue_unterkategorie, altes_jahr)
+    if not os.path.abspath(ziel_ordner).startswith(os.path.abspath(archiv_dir)):
+        return {"ok": False, "error": "Ungültiger Zielpfad."}
+
+    os.makedirs(ziel_ordner, exist_ok=True)
+    ziel_pfad   = _naechste_version(os.path.join(ziel_ordner, dateiname))
+    shutil.move(voll_pfad, ziel_pfad)
+
+    # Leere Quell-Ordner aufräumen
+    try:
+        eltern = Path(voll_pfad).parent
+        while str(eltern) != str(archiv_dir):
+            if not any(eltern.iterdir()):
+                eltern.rmdir()
+                eltern = eltern.parent
+            else:
+                break
+    except Exception:
+        pass
+
+    # Meta aktualisieren
+    meta     = _load_meta()
+    alter_rel = pfad_relativ.replace("\\", "/")
+    neuer_rel = os.path.relpath(ziel_pfad, archiv_dir).replace("\\", "/")
+
+    # Eintrag umbenennen
+    dok = meta.get("dokumente", {}).pop(alter_rel, {})
+    if dok:
+        dok["kategorie"]  = neue_kategorie
+        dok["sub"]        = neue_unterkategorie
+        meta.setdefault("dokumente", {})[neuer_rel] = dok
+
+    # Hash-Zeiger aktualisieren
+    for h, p in list(meta.get("hashes", {}).items()):
+        if p.replace("\\", "/") == alter_rel:
+            meta["hashes"][h] = neuer_rel
+
+    _save_meta(meta)
+    return {"ok": True, "neuer_pfad": neuer_rel, "dateiname": os.path.basename(ziel_pfad)}
+
+
 def _entferne_aus_meta(meta: dict, rel_pfad: str):
     norm = rel_pfad.replace("\\", "/")
     for k in list(meta.get("dokumente", {}).keys()):
