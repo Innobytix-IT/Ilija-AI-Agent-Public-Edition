@@ -1,4 +1,4 @@
-# 🤖 Ilija – Public Edition
+# 🤖 Ilija – Public Edition (LINUX)
 (English version below)
 
 > Persönlicher KI-Assistent für Dokumentenverwaltung, Kommunikation und Organisation.
