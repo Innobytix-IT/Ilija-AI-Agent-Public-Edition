@@ -1,10 +1,12 @@
 """
-DMS – Dokumentenmanagementsystem für Ilija Public Edition v3
+DMS – Dokumentenmanagementsystem für Ilija Public Edition v6
 =============================================================
 Fixes:
-- KI-Prompt für Dateinamen repariert (kein 'NEUER_DATEINAME' Literal mehr)
-- dms_loeschen korrekt exportiert
-- Passwortgeschütztes Löschen
+- EXIF-Rotation für gestochen scharfes OCR von Handyfotos (ImageOps.exif_transpose)
+- Kugelsicherer Pipe-Scanner: findet jede Zeile mit 3+ Trennzeichen, egal ob Sternchen oder Leerzeichen
+- Komplette KI-Antwort im Terminal (kein Abschneiden mehr)
+- Kurzer Direkt-Prompt bei leerem OCR-Text (kein CoT der Format bricht)
+- dms_archiv_baum, dms_pfad_setzen, dms_passwort_entfernen vollständig erhalten
 """
 
 import os
@@ -106,22 +108,17 @@ def _sanitize(text: str) -> str:
     text = text.strip()
     text = re.sub(r'[\\/*?:"<>|]', '', text)
     text = re.sub(r'\s+', '_', text)
-    # Keine Großbuchstaben-Only Strings durchlassen
     if text.isupper() and len(text) > 6:
         text = text.capitalize()
     return text[:80]
 
 def _sanitize_filename(text: str, endung: str) -> str:
-    """Bereinigt Dateinamen – verhindert Placeholder-Strings."""
     text = text.strip()
-    # Entferne Dateiendung falls doppelt
     if text.lower().endswith(endung.lower()):
         text = text[:-len(endung)]
-    # Bereinigen
     text = re.sub(r'[\\/*?:"<>|]', '', text)
     text = re.sub(r'\s+', '_', text)
     text = text.strip('._-')
-    # Fallback wenn leer oder verdächtig
     verdaechtig = {'neuer_dateiname', 'dateiname', 'filename', 'neuer', 'name', 'dokument', 'unbekannt', 'unknown'}
     if not text or text.lower() in verdaechtig or len(text) < 3:
         text = f"Dokument_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -129,25 +126,18 @@ def _sanitize_filename(text: str, endung: str) -> str:
 
 def _is_kryptisch(filename: str) -> bool:
     stem = Path(filename).stem.lower()
-    if len(stem) < 5:
-        return True
-    if re.match(r'^[0-9a-f]{8,}$', stem):
-        return True
-    if re.match(r'^[0-9_\-]+$', stem):
-        return True
-    if re.match(r'^(img|image|photo|foto|scan|doc|file|dokument|unnamed|untitled|new|neu)[\s_\-0-9]*$', stem):
-        return True
-    if re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-', stem):
-        return True
-    if re.match(r'^\d{10,}$', stem):
-        return True
+    if len(stem) < 5: return True
+    if re.match(r'^[0-9a-f]{8,}$', stem): return True
+    if re.match(r'^[0-9_\-]+$', stem): return True
+    if re.match(r'^(img|image|photo|foto|scan|doc|file|dokument|unnamed|untitled|new|neu)[\s_\-0-9]*$', stem): return True
+    if re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-', stem): return True
+    if re.match(r'^\d{10,}$', stem): return True
     return False
 
 def _pruefen_passwort(passwort: str) -> bool:
-    """Prüft ob ein Passwort korrekt ist (falls Passwortschutz aktiv)."""
     cfg = _get_config()
     if not cfg.get("passwort_aktiv") or not cfg.get("passwort_hash"):
-        return True  # Kein Passwortschutz aktiv
+        return True
     return hashlib.sha256(passwort.encode()).hexdigest() == cfg["passwort_hash"]
 
 # ── Textextraktion ────────────────────────────────────────────
@@ -204,8 +194,9 @@ def _extrahiere_text(filepath: str) -> str:
     if ext in (".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif", ".bmp"):
         try:
             import pytesseract
-            from PIL import Image
+            from PIL import Image, ImageOps
             img = Image.open(filepath)
+            img = ImageOps.exif_transpose(img)  # EXIF-Rotation korrigieren (Handy-Fotos!)
             text = pytesseract.image_to_string(img, lang="deu+eng")
             return text[:MAX_TEXT_LEN]
         except ImportError:
@@ -235,76 +226,95 @@ def _extrahiere_text(filepath: str) -> str:
     return ""
 
 
-# ── KI-Kategorisierung (reparierter Prompt) ───────────────────
+# ── KI-Kategorisierung v6 ─────────────────────────────────────
+
+def _extrahiere_pipe_zeile(antwort: str) -> list | None:
+    """
+    Ultra-permissiver Scanner: findet jede Zeile mit mindestens 3 Pipes (|).
+    Entfernt vorher Markdown-Zeichen und ERGEBNIS-Prefix.
+    Kein erzwungener Jahr-Check – wird danach per regex geprüft.
+    """
+    for zeile in reversed(antwort.splitlines()):
+        zeile = re.sub(r'[*_`>#]', '', zeile).strip()
+        zeile = re.sub(r'^(?:ERGEBNIS|ergebnis)\s*:?\s*', '', zeile, flags=re.IGNORECASE)
+        t = [x.strip() for x in zeile.split("|")]
+        if len(t) >= 4 and all(len(x) > 0 for x in t[:4]):
+            return t
+    return None
+
 
 def _ki_kategorisiere(filename: str, text: str, provider) -> dict:
     """
-    Lässt die KI Kategorie, Unterkategorie, Jahr und Dateinamen bestimmen.
-    Der Dateiname wird IMMER aus dem Inhalt generiert – keine Platzhalter.
+    Dokumenten-Kategorisierung v6:
+    - Kein CoT bei leerem Text (kurzer Direkt-Prompt)
+    - CoT bei vorhandenem Text mit Anti-Halluzinations-Regeln
+    - Komplette KI-Antwort im Terminal sichtbar (kein Abschneiden)
+    - _extrahiere_pipe_zeile: findet Ergebnis unabhängig von Markdown/Leerzeichen
     """
     ist_kryptisch = _is_kryptisch(filename)
     endung        = Path(filename).suffix.lower()
     jahr_aktuell  = str(datetime.now().year)
+    ts_fallback   = datetime.now().strftime('%H%M%S')
+    kein_text     = not text or len(text.strip()) < 20
 
-    # WICHTIG: Prompt enthält KEINE Platzhalter mehr die kopiert werden könnten
-    prompt = f"""Analysiere dieses Dokument und kategorisiere es STRENG nach dem Inhalt.
+    if kein_text:
+        prompt = f"""Kategorisiere diese Datei. Kein Text vorhanden.
+Antworte NUR mit dieser einen Zeile (nichts sonst):
+Unsortiert|Allgemein|{jahr_aktuell}|Unbekanntes_Dokument_{ts_fallback}{endung}"""
+    else:
+        prompt = f"""Du bist ein professioneller Dokumenten-Analyst.
 
-Originaldateiname: {filename}
-Dokumenteninhalt (extrahiert via OCR):
+Originalname: {filename}
+OCR-Text:
 ---
-{text[:2000] if text and len(text.strip()) > 10 else '[KEIN LESBARER TEXT GEFUNDEN]'}
+{text[:2500]}
 ---
 
-Antworte in GENAU diesem Format (4 Teile, getrennt durch |):
-[HAUPTKATEGORIE]|[UNTERKATEGORIE]|[JAHRESZAHL]|[BESCHREIBENDER_DATEINAME{endung}]
+ANALYSIERE IN 3 SCHRITTEN:
+SCHRITT 1 – EXTRAKTION: Welche Firmen stehen im Briefkopf? Welches Datum ist erkennbar?
+SCHRITT 2 – VALIDIERUNG: Wer ist der RECHTLICHE ABSENDER (oben links)? Firmen die nur als Partner erwähnt werden sind NICHT der Absender. Erfinde keine Absender!
+SCHRITT 3 – ENTSCHEIDUNG: Wähle Hauptkategorie, Unterkategorie (Absender) und einen logischen Dateinamen.
 
-REGELN FÜR DIE KATEGORISIERUNG:
-1. Wenn der 'Dokumenteninhalt' oben leer ist oder nur wirre Zeichen enthält, antworte UNBEDINGT mit:
-   Unsortiert|Allgemein|{jahr_aktuell}|Unbekanntes_Dokument_{datetime.now().strftime('%H%M%S')}{endung}
+Hauptkategorie NUR aus: / Rechnungen / Verträge / Versicherung / Steuern / Behörden / Medizin / Privat / Finanzen/ Arbeit / Immobilien / Fahrzeuge / Bildung / PKW / Unsortiert / 
 
-2. RATE NIEMALS Kategorien wie 'Telekom', 'HUK-Coburg' oder 'Finanzamt', wenn diese Namen nicht EXPLIZIT im Text stehen. Diese Namen in den Beispielen dienen NUR der Format-Veranschaulichung!
-
-3. Wenn du den Absender nicht sicher identifizieren kannst, setze als UNTERKATEGORIE 'Unbekannt'.
-
-4. HAUPTKATEGORIE-AUSWAHL: Rechnungen / Verträge / Versicherung / Steuern / Behörden / Medizin / Privat / Finanzen / Arbeit / Immobilien / Fahrzeuge / Bildung / Unsortiert
-
-Beispiel für ein erkanntes Dokument:
-Rechnungen|Amazon|2024|Amazon_Rechnung_Kaffeemaschine{endung}
-
-Beispiel für ein NICHT erkanntes Dokument:
-Unsortiert|Allgemein|{jahr_aktuell}|Nicht_erkennbares_Dokument{endung}
-
-Nur die eine Zeile antworten, keine Erklärung."""
+Schreibe als LETZTE ZEILE deiner Antwort (und nichts danach):
+ERGEBNIS: Hauptkategorie|Unterkategorie|Jahr|Absender_Typ_Datum{endung}"""
 
     try:
-        antwort = provider.chat([{"role": "user", "content": prompt}]).strip()
-        # Erste Zeile nehmen, Markdown-Code-Blöcke entfernen
-        antwort = re.sub(r'```[^\n]*\n?', '', antwort).strip()
-        antwort = antwort.split("\n")[0].strip()
-        teile   = antwort.split("|")
+        antwort_roh = provider.chat([{"role": "user", "content": prompt}]).strip()
 
-        if len(teile) >= 4:
-            jahr = teile[2].strip()
-            if not re.match(r'^\d{4}$', jahr):
-                jahr = jahr_aktuell
+        # DEBUG: Komplette KI-Antwort anzeigen (kein Abschneiden!)
+        print(f"\n{'='*60}\nDEBUG '{filename}':\n{antwort_roh}\n{'='*60}\n")
 
-            roher_dateiname = teile[3].strip()
-            dateiname       = _sanitize_filename(roher_dateiname, endung)
+        antwort = re.sub(r'```[^\n]*\n?', '', antwort_roh).strip()
 
-            return {
-                "kategorie":      _sanitize(teile[0]) or "Unsortiert",
-                "unterkategorie": _sanitize(teile[1]) or "Allgemein",
-                "jahr":           jahr,
-                "dateiname":      dateiname,
-                "umbenannt":      ist_kryptisch or (dateiname.lower() != Path(filename).name.lower()),
-            }
+        teile = _extrahiere_pipe_zeile(antwort)
+        if not teile:
+            raise ValueError("Keine Zeile mit 3+ Trennzeichen '|' gefunden.")
+
+        kat       = _sanitize(teile[0])
+        sub       = _sanitize(teile[1])
+        jahr      = teile[2].strip()
+        dateiname = _sanitize_filename(teile[3].strip(), endung)
+
+        print(f"DEBUG: ✅ KI Format erkannt: {kat}/{sub}/{jahr}/{dateiname}")
+
+        return {
+            "kategorie":      kat or "Unsortiert",
+            "unterkategorie": sub or "Allgemein",
+            "jahr":           jahr if re.match(r'^20\d{2}$', jahr) else jahr_aktuell,
+            "dateiname":      dateiname,
+            "umbenannt":      ist_kryptisch or True,
+        }
+
     except Exception as e:
-        pass
+        print(f"DEBUG: ❌ Fehler bei '{filename}': {e}")
 
-    # Fallback: vernünftigen Namen aus Datum + Originalname
+    # Fallback
     ts       = datetime.now().strftime("%Y%m%d")
     stem     = Path(filename).stem[:40]
     fallback = f"{ts}_{stem}{endung}" if not ist_kryptisch else f"Dokument_{ts}{endung}"
+    print(f"DEBUG: ⚠️ Fallback-Name: {fallback}")
 
     return {
         "kategorie":      "Unsortiert",
@@ -368,9 +378,11 @@ def dms_einsortieren(provider=None) -> str:
             bericht.append(f"♻️ Duplikat: **{dateiname}** → identisch mit {vorhandener}")
             continue
 
-        text    = _extrahiere_text(quell_pfad)
-        ki_info = _ki_kategorisiere(dateiname, text, provider)
+        text = _extrahiere_text(quell_pfad)
+        clean_text = text.replace('\n', ' ')
+        print(f"DEBUG: OCR-Text für {dateiname}: {clean_text[:120]}...")
 
+        ki_info    = _ki_kategorisiere(dateiname, text, provider)
         neuer_name = ki_info["dateiname"]
         if not neuer_name.lower().endswith(endung):
             neuer_name = Path(neuer_name).stem + endung
@@ -420,10 +432,7 @@ def dms_einsortieren(provider=None) -> str:
 
 
 def dms_loeschen(pfad_relativ: str, passwort: str = "") -> str:
-    """
-    Löscht eine archivierte Datei und entfernt sie aus meta.json.
-    Falls Passwortschutz aktiv: passwort muss korrekt sein.
-    """
+    """Löscht eine archivierte Datei und entfernt sie aus meta.json."""
     _init_dirs()
 
     if not _pruefen_passwort(passwort):
@@ -445,7 +454,6 @@ def dms_loeschen(pfad_relativ: str, passwort: str = "") -> str:
 
     os.remove(voll_pfad)
 
-    # Leere Ordner aufräumen
     try:
         eltern = Path(voll_pfad).parent
         while str(eltern) != str(archiv_dir):
@@ -474,14 +482,14 @@ def _entferne_aus_meta(meta: dict, rel_pfad: str):
 
 def dms_suchen(suchbegriff: str) -> str:
     _init_dirs()
-    archiv_dir    = _get_archiv_dir()
-    treffer       = []
-    q             = suchbegriff.lower()
+    archiv_dir = _get_archiv_dir()
+    treffer    = []
+    q          = suchbegriff.lower()
     for root, _, files in os.walk(archiv_dir):
         for f in files:
             rel = os.path.relpath(os.path.join(root, f), archiv_dir)
             if q in rel.lower():
-                sz  = os.path.getsize(os.path.join(root, f))
+                sz   = os.path.getsize(os.path.join(root, f))
                 sz_s = f"{sz//1024} KB" if sz > 1024 else f"{sz} B"
                 treffer.append(f"  📄 {rel}  ({sz_s})")
     if not treffer:
