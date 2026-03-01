@@ -282,7 +282,51 @@ body{font-family:var(--f);background:var(--bg);color:var(--tx);height:100vh;disp
 .prev-pdf{width:100%;height:58vh;border:none;border-radius:var(--r2)}
 .prev-none{text-align:center;color:var(--tx3);font-family:var(--m);font-size:.82rem;padding:36px}
 
-/* ── Delete confirm modal ──────────────────────────────── */
+/* ── Move dropdown ──────────────────────────────────────── */
+.move-wrap{position:relative;display:inline-flex}
+.move-menu{
+  position:absolute;top:calc(100% + 4px);right:0;
+  background:var(--s2);border:1px solid var(--bdr2);
+  border-radius:var(--r);min-width:190px;z-index:600;
+  box-shadow:var(--sh);display:none;overflow:hidden;
+}
+.move-menu.open{display:block;animation:pop .13s ease}
+.move-menu-head{padding:6px 11px 4px;font-size:.6rem;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;font-family:var(--m);font-weight:500}
+.move-opt{
+  padding:7px 13px;cursor:pointer;font-size:.78rem;color:var(--tx2);
+  transition:background .1s;display:flex;align-items:center;gap:7px;
+}
+.move-opt:hover{background:var(--gd);color:var(--g)}
+.move-opt.cur{color:var(--tx3);pointer-events:none;opacity:.45}
+
+/* ── Drag & Drop auf Kategorie-Karten ───────────────────── */
+.cat-card.drag-over{
+  border-color:var(--g)!important;
+  background:var(--gd)!important;
+  transform:translateY(-3px) scale(1.02)!important;
+  box-shadow:0 0 0 2px rgba(0,216,130,.3),var(--sh)!important;
+}
+.doc-row-dragging{opacity:.35}
+
+/* ── Drag & Drop Sidebar ─────────────────────────────────── */
+.tree-cat.drag-over{
+  background:var(--gd)!important;
+  color:var(--g)!important;
+  border:1px solid rgba(0,216,130,.35)!important;
+  box-shadow:inset 0 0 0 1px rgba(0,216,130,.2);
+}
+.tree-cat .drop-hint{
+  display:none;margin-left:auto;
+  font-size:.6rem;font-family:var(--m);
+  color:var(--g);opacity:.7;
+}
+.dragging-active .tree-cat .drop-hint{display:block}
+.dragging-active .tree-cat{
+  border:1px dashed rgba(0,216,130,.2);
+  color:var(--tx);
+}
+
+
 .del-modal{max-width:400px}
 .del-modal .modal-body{padding:20px 22px;display:block}
 .del-modal p{font-size:.85rem;color:var(--tx2);margin-bottom:14px;line-height:1.6}
@@ -630,6 +674,16 @@ function renderRoot(){
     c.className='cat-card';
     c.innerHTML=`<span class="cc-icon">${ICONS[cat.name]||'📂'}</span><div class="cc-name">${cat.name}</div><div class="cc-cnt">${cat.count} Dokument${cat.count!==1?'e':''}</div>`;
     c.onclick=()=>renderCat(cat);
+
+    // Drag & Drop – Kategorie-Karte als Ziel
+    c.addEventListener('dragover', ev=>{ev.preventDefault();c.classList.add('drag-over')});
+    c.addEventListener('dragleave',()=>c.classList.remove('drag-over'));
+    c.addEventListener('drop', ev=>{
+      ev.preventDefault();c.classList.remove('drag-over');
+      const pfad=ev.dataTransfer.getData('text/plain');
+      if(pfad) moveDoc(pfad, cat.name, '', c);
+    });
+
     g.appendChild(c);
   });
   document.getElementById('archContent').innerHTML='';
@@ -642,8 +696,19 @@ function renderSidebarTree(){
   tree.forEach(cat=>{
     const b=document.createElement('button');
     b.className='tree-cat';
-    b.innerHTML=`${ICONS[cat.name]||'📂'} ${cat.name}<span class="tc-count">${cat.count}</span>`;
+    b.innerHTML=`${ICONS[cat.name]||'📂'} ${cat.name}<span class="tc-count">${cat.count}</span><span class="drop-hint">ablegen</span>`;
     b.onclick=()=>{showPage('archiv');renderCat(cat)};
+
+    // Sidebar als Drag-Ziel
+    b.addEventListener('dragover', ev=>{ev.preventDefault();b.classList.add('drag-over')});
+    b.addEventListener('dragleave',()=>b.classList.remove('drag-over'));
+    b.addEventListener('drop', ev=>{
+      ev.preventDefault();
+      b.classList.remove('drag-over');
+      const pfad=ev.dataTransfer.getData('text/plain');
+      if(pfad) moveDoc(pfad, cat.name, '');
+    });
+
     el.appendChild(b);
   });
 }
@@ -669,7 +734,24 @@ function renderCat(cat){
     sub.dateien.forEach(doc=>{
       const sz=doc.groesse>1048576?(doc.groesse/1048576).toFixed(1)+' MB':doc.groesse>1024?Math.round(doc.groesse/1024)+' KB':doc.groesse+' B';
       const canPv=['pdf','jpg','jpeg','png','webp','tiff','bmp'].includes(doc.ext);
+      const curKat=cat.name;
       const tr=document.createElement('tr');
+      tr.draggable=true;
+      tr.style.cursor='grab';
+      tr.addEventListener('dragstart',ev=>{
+        ev.dataTransfer.setData('text/plain',doc.pfad);
+        tr.classList.add('doc-row-dragging');
+        document.body.classList.add('dragging-active');
+      });
+      tr.addEventListener('dragend',()=>{
+        tr.classList.remove('doc-row-dragging');
+        document.body.classList.remove('dragging-active');
+      });
+
+      // Verschieben-Dropdown HTML
+      const moveOpts=tree.map(c=>`<div class="move-opt${c.name===curKat?' cur':''}" onclick="moveDoc('${doc.pfad}','${c.name}','',this)">${ICONS[c.name]||'📂'} ${c.name}</div>`).join('');
+      const moveId='mv_'+Math.random().toString(36).slice(2,8);
+
       tr.innerHTML=`
         <td><span class="ext-badge ${eClass(doc.ext)}">${doc.ext||'?'}</span></td>
         <td style="max-width:300px"><div style="font-weight:500;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${doc.name}">${doc.name}</div></td>
@@ -678,6 +760,13 @@ function renderCat(cat){
         <td><div class="fa-row">
           ${canPv?`<button class="fab" onclick="openPv('${doc.pfad}','${esc(doc.name)}')">👁 Vorschau</button>`:''}
           <button class="fab" onclick="dlFile('${doc.pfad}')">⬇ Download</button>
+          <div class="move-wrap">
+            <button class="fab" onclick="toggleMoveMenu('${moveId}',event)">📁 Verschieben</button>
+            <div class="move-menu" id="${moveId}">
+              <div class="move-menu-head">Ziel-Kategorie</div>
+              ${moveOpts}
+            </div>
+          </div>
           <button class="fab del" onclick="askDelete('${doc.pfad}','${esc(doc.name)}')">🗑 Löschen</button>
         </div></td>`;
       tb.appendChild(tr);
@@ -994,6 +1083,41 @@ async function saveModels(){
     try{await fetch('/api/model',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:p,model_name:val})});saved++;}catch(e){}
   }
   if(saved){toast(`${saved} Modell(e) gespeichert`,'success');loadModelInfo();}else toast('Keine Änderungen','info');
+}
+
+// ── Move Document ─────────────────────────────────────────────
+function toggleMoveMenu(id, ev){
+  ev.stopPropagation();
+  // Alle anderen schließen
+  document.querySelectorAll('.move-menu.open').forEach(m=>{if(m.id!==id)m.classList.remove('open')});
+  document.getElementById(id).classList.toggle('open');
+}
+
+document.addEventListener('click',()=>{
+  document.querySelectorAll('.move-menu.open').forEach(m=>m.classList.remove('open'));
+});
+
+async function moveDoc(pfad, kategorie, unterkategorie='', triggerEl=null){
+  // Menu schließen falls vorhanden
+  document.querySelectorAll('.move-menu.open').forEach(m=>m.classList.remove('open'));
+
+  lbS();
+  try{
+    const r=await fetch('/api/dms/move',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pfad, kategorie, unterkategorie})
+    });
+    const d=await r.json();
+    if(d.ok){
+      toast(`↪ ${d.dateiname} → ${kategorie}`,'success');
+      await loadArchiv();
+      loadStats();
+    } else {
+      toast(d.error||'Verschieben fehlgeschlagen','error');
+    }
+  }catch(e){toast('Verbindungsfehler','error')}
+  lbE();
 }
 
 // ── Helpers ───────────────────────────────────────────────────
