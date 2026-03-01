@@ -30,7 +30,7 @@ def _init():
         name=COLLECTION,
         metadata={"hnsw:space": "cosine"}
     )
-    _model = SentenceTransformer("all-MiniLM-L6-v2")
+    _model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
 
 
 def gedaechtnis_speichern(information: str, kategorie: str = "allgemein") -> str:
