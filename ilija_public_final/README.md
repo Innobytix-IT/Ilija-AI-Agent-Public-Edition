@@ -28,7 +28,7 @@ sudo apt update && sudo apt install -y git curl python3-pip python3-venv wget
 
 ```bash
 git clone https://github.com/Innobytix-IT/Ilija-AI-Agent-Public-Edition.git
-cd Ilija-AI-Agent-Public-Edition
+cd Ilija-AI-Agent-Public-Edition/ilija_public_final
 chmod +x install.sh
 ./install.sh
 ```
@@ -192,9 +192,9 @@ sudo apt update && sudo apt install -y git curl python3-pip python3-venv wget
 
 ```bash
 git clone https://github.com/Innobytix-IT/Ilija-AI-Agent-Public-Edition.git
-cd Ilija-AI-Agent-Public-Edition
-chmod +x install_EN.sh
-./install_EN.sh
+cd Ilija-AI-Agent-Public-Edition/ilija_public_final
+chmod +x install.sh
+./install.sh
 ```
 
 ### Manual
