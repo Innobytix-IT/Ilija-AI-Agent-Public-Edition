@@ -31,7 +31,7 @@ ALLOWED_USERS = set(
 
 # Globaler Kernel
 kernel      = None
-kernel_lock = threading.Lock()
+kernel_lock = threading.RLock()
 
 
 def get_kernel() -> Kernel:
