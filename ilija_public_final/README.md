@@ -1,4 +1,4 @@
-# 🤖 Ilija – Public Edition (LINUX)
+# 🤖 Ilija – Public Workflow-Edition (LINUX)
 (English version below)
 
 > Persönlicher KI-Assistent für Automatisierung, Dokumentenverwaltung, Kommunikation und Organisation.
@@ -260,7 +260,7 @@ MIT License – kostenlos nutzbar, teilbar und anpassbar.
 ---
 ---
 
-# 🤖 Ilija – Public Edition
+# 🤖 Ilija – Public Workflow-Edition
 
 > Your personal AI assistant for automation, document management, communication and organisation.
 
