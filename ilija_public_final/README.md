@@ -14,7 +14,7 @@
 - **📱 Telegram** – vollständige Fernsteuerung, Dokumente per App senden
 - **🔍 Internet-Recherche** – DuckDuckGo / Google, Wikipedia, Webseiten lesen
 - **🌐 Web-Interface** – Browser-Chat mit Datei-Upload & DMS-Integration
-- **🤖 Multi-Provider** – Claude → GPT → Gemini → Ollama (automatisch)
+- **🤖 Multi-Provider** – Claude → GPT → Gemini → Ollama DSGVO konform (automatisch)
 
 ---
 
