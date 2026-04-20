@@ -21,7 +21,7 @@ CORS(app)
 
 # Globaler Kernel (Thread-safe via Lock)
 kernel      = None
-kernel_lock = threading.Lock()
+kernel_lock = threading.RLock()
 
 
 def get_kernel() -> Kernel:
