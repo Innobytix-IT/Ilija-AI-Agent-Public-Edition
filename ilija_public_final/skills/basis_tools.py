@@ -24,6 +24,10 @@ def notiz_speichern(text: str, datei: str = "notizen.txt") -> str:
     Speichert eine Notiz in einer Textdatei.
     Beispiel: notiz_speichern(text="Wichtig: Meeting morgen um 10 Uhr")
     """
+    # Nur Dateiname erlaubt — kein Verzeichnis-Traversal möglich
+    datei    = os.path.basename(datei) or "notizen.txt"
+    if not datei.endswith(".txt"):
+        datei = datei + ".txt"
     os.makedirs("data/notizen", exist_ok=True)
     pfad     = os.path.join("data/notizen", datei)
     eintrag  = f"[{datetime.now().strftime('%d.%m.%Y %H:%M')}] {text}\n"
@@ -40,7 +44,9 @@ def notizen_lesen(datei: str = "notizen.txt") -> str:
     Liest alle gespeicherten Notizen.
     Beispiel: notizen_lesen()
     """
-    pfad = os.path.join("data/notizen", datei)
+    # Nur Dateiname erlaubt — kein Verzeichnis-Traversal möglich
+    datei = os.path.basename(datei) or "notizen.txt"
+    pfad  = os.path.join("data/notizen", datei)
     if not os.path.exists(pfad):
         return "📝 Keine Notizen vorhanden."
     try:

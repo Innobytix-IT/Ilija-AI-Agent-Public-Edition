@@ -2,6 +2,8 @@
 web_server.py – Web-Interface für Ilija Public Edition
 Starten: python web_server.py
 Browser: http://localhost:5000
+
+Erweitert um n8n-ähnliches Workflow Studio.
 """
 
 import os
@@ -24,8 +26,11 @@ kernel_lock = threading.Lock()
 
 def get_kernel() -> Kernel:
     global kernel
+    # Double-checked locking: Thread-sichere Initialisierung ohne permanenten Lock-Overhead
     if kernel is None:
-        kernel = Kernel()
+        with kernel_lock:
+            if kernel is None:
+                kernel = Kernel()
     return kernel
 
 
@@ -33,11 +38,20 @@ def get_kernel() -> Kernel:
 from dms_routes import register_dms_routes
 register_dms_routes(app)
 
+# ── Workflow-Routen einbinden ─────────────────────────────────
+from workflow_routes import register_workflow_routes
+register_workflow_routes(app, get_kernel, kernel_lock)
 
-# ── Haupt-Chat-Interface ──────────────────────────────────────
+
+# ── Haupt-Interface (Workflow Studio) ────────────────────
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/chat")
+def chat_page():
+    return render_template("indexchat.html")
 
 
 @app.route("/api/chat", methods=["POST"])
@@ -46,9 +60,11 @@ def chat():
     msg   = data.get("message", "").strip()
     if not msg:
         return jsonify({"error": "Leere Nachricht"}), 400
+    # Nur Kernel-Referenz im Lock holen — k.chat() AUSSERHALB des Locks!
+    # k.chat() dauert bis zu 60s und würde sonst alle parallelen Requests blockieren.
     with kernel_lock:
-        k        = get_kernel()
-        response = k.chat(msg)
+        k = get_kernel()
+    response = k.chat(msg)
     return jsonify({"response": response, "provider": k.state.active_provider})
 
 
@@ -59,13 +75,11 @@ def status():
         return jsonify(k.state.get_status_dict())
 
 
-# Alias /api/stats → gleiche Daten (wird von externen Clients abgefragt)
 @app.route("/api/stats")
 def stats_alias():
     with kernel_lock:
         k = get_kernel()
         d = k.state.get_status_dict()
-    # DMS-Stats ergänzen falls verfügbar
     try:
         from skills.dms import dms_stats
         d["dms"] = dms_stats()
@@ -115,7 +129,6 @@ def skills():
 
 @app.route("/api/upload", methods=["POST"])
 def upload_file():
-    """Datei-Upload für Chat (Bilder, Dokumente)."""
     if "file" not in request.files:
         return jsonify({"error": "Keine Datei"}), 400
 
@@ -131,7 +144,6 @@ def upload_file():
     filepath  = os.path.join(upload_dir, filename)
     file.save(filepath)
 
-    # Direkt in DMS-Import kopieren?
     auto_dms = request.form.get("auto_dms", "false").lower() == "true"
     if auto_dms:
         import shutil
@@ -141,6 +153,131 @@ def upload_file():
         return jsonify({"message": f"{filename} in DMS-Import gespeichert", "filename": filename})
 
     return jsonify({"message": f"{filename} hochgeladen", "filename": filename, "path": filepath})
+
+
+@app.route("/api/settings", methods=["GET"])
+def get_settings():
+    """Gibt aktuelle Konfiguration zurück (API-Keys maskiert)."""
+    try:
+        with open("models_config.json", "r") as f:
+            cfg = json.load(f)
+    except Exception:
+        cfg = {"default_provider": "auto", "models": {}}
+
+    def mask(key):
+        if not key:
+            return ""
+        return key[:6] + "****" if len(key) > 6 else "****"
+
+    with kernel_lock:
+        active = kernel.state.active_provider if kernel else "—"
+
+    ant_key = os.getenv("ANTHROPIC_API_KEY", "")
+    oai_key = os.getenv("OPENAI_API_KEY", "")
+    gem_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY", "")
+
+    ollama_models = []
+    try:
+        import ollama
+        result = ollama.list()
+        ollama_models = [m.get("model", m.get("name", "")) for m in result.get("models", [])]
+        ollama_models = [m for m in ollama_models if m]
+    except Exception:
+        pass
+
+    return jsonify({
+        "active_provider":  active,
+        "default_provider": cfg.get("default_provider", "auto"),
+        "models":           cfg.get("models", {}),
+        "keys": {
+            "anthropic": mask(ant_key),
+            "openai":    mask(oai_key),
+            "gemini":    mask(gem_key),
+        },
+        "has_keys": {
+            "anthropic": bool(ant_key),
+            "openai":    bool(oai_key),
+            "gemini":    bool(gem_key),
+        },
+        "ollama_models": ollama_models,
+    })
+
+
+@app.route("/api/settings", methods=["POST"])
+def save_settings():
+    """Speichert API-Keys und Modell-Konfiguration, setzt Kernel zurück."""
+    global kernel
+    data = request.get_json() or {}
+
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+
+    env_lines = []
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            env_lines = f.readlines()
+
+    def set_env_key(lines, key, value):
+        if not value or "****" in value:
+            return lines
+        new_line = f"{key}={value}\n"
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith(f"{key}=") or stripped.startswith(f"{key} ="):
+                lines[i] = new_line
+                return lines
+        lines.append(new_line)
+        return lines
+
+    keys   = data.get("keys", {})
+    models = data.get("models", {})
+
+    env_lines = set_env_key(env_lines, "ANTHROPIC_API_KEY", keys.get("anthropic", ""))
+    env_lines = set_env_key(env_lines, "OPENAI_API_KEY",    keys.get("openai", ""))
+    env_lines = set_env_key(env_lines, "GOOGLE_API_KEY",    keys.get("gemini", ""))
+
+    # Modell-Einstellungen ebenfalls als Env-Vars speichern
+    if models.get("claude"): env_lines = set_env_key(env_lines, "ANTHROPIC_MODEL", models["claude"])
+    if models.get("openai"): env_lines = set_env_key(env_lines, "OPENAI_MODEL",    models["openai"])
+    if models.get("gemini"): env_lines = set_env_key(env_lines, "GOOGLE_MODEL",    models["gemini"])
+    if models.get("ollama"): env_lines = set_env_key(env_lines, "OLLAMA_MODEL",    models["ollama"])
+
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.writelines(env_lines)
+
+    load_dotenv(env_path, override=True)
+
+    # models_config.json aktualisieren
+    try:
+        with open("models_config.json", "r") as f:
+            cfg = json.load(f)
+    except Exception:
+        cfg = {}
+
+    provider = data.get("provider", "auto")
+    cfg["default_provider"] = provider
+    if models:
+        cfg.setdefault("models", {}).update({k: v for k, v in models.items() if v})
+
+    with open("models_config.json", "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+    # Kernel zurücksetzen → beim nächsten Request neu initialisiert
+    with kernel_lock:
+        kernel = None
+
+    return jsonify({"message": "Einstellungen gespeichert. Provider wird neu initialisiert."})
+
+
+@app.route("/api/ollama/models")
+def get_ollama_models():
+    """Listet verfügbare lokale Ollama-Modelle auf."""
+    try:
+        import ollama
+        result = ollama.list()
+        models = [m.get("model", m.get("name", "")) for m in result.get("models", [])]
+        return jsonify([m for m in models if m])
+    except Exception:
+        return jsonify([])
 
 
 if __name__ == "__main__":
@@ -153,11 +290,11 @@ if __name__ == "__main__":
     except Exception:
         ip = "127.0.0.1"
 
-    print(f"\n{'='*50}")
-    print(f"  Ilija Public Edition – Web Interface")
+    print(f"\n{'='*56}")
+    print(f"  Ilija Public Edition – Workflow Studio")
     print(f"  Lokal:    http://localhost:{port}")
     print(f"  Netzwerk: http://{ip}:{port}")
     print(f"  DMS:      http://localhost:{port}/dms")
-    print(f"{'='*50}\n")
+    print(f"{'='*56}\n")
 
     app.run(host="0.0.0.0", port=port, debug=debug, threaded=True)

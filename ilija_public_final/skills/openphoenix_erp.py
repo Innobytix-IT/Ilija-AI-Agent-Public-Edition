@@ -1,19 +1,12 @@
 """
-openphoenix_erp.py – OpenPhoenix ERP Skill für Ilija v2.1
+openphoenix_erp.py – OpenPhoenix ERP Skill für Ilija v2.2
 ==========================================================
-Verbindet Ilija mit OpenPhoenix ERP v2.
-
-v2.1 – Korrekte Methodennamen nach Code-Analyse:
-  - db.initialize()  → erwartet SQLAlchemy-URL, nicht Pfad
-  - RechnungsService().alle()         (nicht liste)
-  - RechnungsService().status_aendern() (nicht status_setzen)
-  - LagerService().alle_artikel()      (nicht artikel_liste)
-  - KundenService().alle()             (nicht liste)
-  - MahnKonfig.aus_config()            (nicht get_konfig)
-  - mahnung_als_pdf_bytes(UeberfaelligeDTO) via uebersicht()
+Verbindet Ilija mit OpenPhoenix ERP v2 und v3.
+V3 erweitert V2 um: Angebote, Eingangsbelege, DATEV-Export, Backup.
 
 SETUP:
   Einmalig: erp_pfad_setzen(pfad="C:/Pfad/zu/OpenPhoenixERP_V2")
+       oder: erp_pfad_setzen(pfad="C:/Pfad/zu/OpenPhoenixERP_V3")
 """
 
 import os
@@ -87,7 +80,8 @@ def erp_skill(func):
         if not _erp_einbinden():
             return (
                 "❌ OpenPhoenix ERP ist nicht konfiguriert.\n"
-                "Bitte zuerst ausführen: erp_pfad_setzen(pfad=\"C:/Pfad/zu/OpenPhoenixERP_V2\")"
+                "Bitte zuerst ausführen: erp_pfad_setzen(pfad=\"C:/Pfad/zu/OpenPhoenixERP_V2\") "
+                "oder erp_pfad_setzen(pfad=\"C:/Pfad/zu/OpenPhoenixERP_V3\")"
             )
         try:
             from core.db.engine import db
@@ -188,8 +182,9 @@ def _smtp_senden(empfaenger_email: str, betreff: str,
 
 def erp_pfad_setzen(pfad: str) -> str:
     """
-    Verbindet Ilija mit OpenPhoenix ERP. Einmalig ausführen.
-    Beispiel: erp_pfad_setzen(pfad="C:/Users/manue/OpenPhoenixERP_V2")
+    Verbindet Ilija mit OpenPhoenix ERP (V2 oder V3). Einmalig ausführen.
+    Beispiel V2: erp_pfad_setzen(pfad="C:/Users/manue/OpenPhoenixERP_V2")
+    Beispiel V3: erp_pfad_setzen(pfad="C:/Users/manue/OpenPhoenixERP_V3")
     """
     pfad = pfad.strip().strip('"').strip("'")
     if not os.path.exists(pfad):
@@ -339,7 +334,7 @@ def erp_rechnung_status_setzen(session, rechnungsnummer: str, status: str) -> st
         session, rechnung.id, status,
         bemerkung_zusatz="Von Ilija gesetzt"
     )
-    if not ergebnis.ok:
+    if not ergebnis.success:
         return f"❌ {ergebnis.message}"
 
     return (f"✅ Rechnung {rechnungsnummer}:\n"
@@ -382,7 +377,7 @@ def erp_zahlung_buchen(session, rechnungsnummer: str, betrag: str = "",
     if betrag:
         teil = Decimal(betrag.replace(",", "."))
         ergebnis = rs.teilzahlung_buchen(session, rechnung.id, teil, bemerkung=bemerkung)
-        if not ergebnis.ok:
+        if not ergebnis.success:
             return f"❌ {ergebnis.message}"
         bisher = Decimal(str(rechnung.gezahlter_betrag or 0)) + teil
         offen  = Decimal(str(rechnung.summe_brutto)) - bisher
@@ -396,7 +391,7 @@ def erp_zahlung_buchen(session, rechnungsnummer: str, betrag: str = "",
             session, rechnung.id, "Bezahlt",
             bemerkung_zusatz=bemerkung or "Vollständig bezahlt – Von Ilija"
         )
-        if not ergebnis.ok:
+        if not ergebnis.success:
             return f"❌ {ergebnis.message}"
         return f"✅ Rechnung {rechnungsnummer} als bezahlt markiert."
 
@@ -642,11 +637,166 @@ def erp_kunde_info(session, suchbegriff: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# V3-ERKENNUNG
+# ══════════════════════════════════════════════════════════════════════════
+
+def _is_v3() -> bool:
+    """Gibt True zurück wenn der eingerichtete ERP-Pfad V3 ist."""
+    pfad = _erp_pfad()
+    return bool(pfad) and os.path.exists(
+        os.path.join(pfad, "core", "services", "angebote_service.py")
+    )
+
+
+def erp_version_info() -> str:
+    """
+    Zeigt welche OpenPhoenix-Version verbunden ist (V2 oder V3).
+    Beispiel: erp_version_info()
+    """
+    if not _erp_verfuegbar():
+        return "❌ Kein ERP verbunden. Bitte erp_pfad_setzen() ausführen."
+    version = "V3" if _is_v3() else "V2"
+    pfad = _erp_pfad()
+    v3_features = ""
+    if version == "V3":
+        v3_features = "\n\nV3-Features verfügbar:\n  • erp_angebote_liste()\n  • erp_belege_liste()\n  • erp_datev_exportieren()\n  • erp_backup_erstellen()"
+    return f"✅ OpenPhoenix ERP {version} verbunden\n📂 Pfad: {pfad}{v3_features}"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# V3-EXKLUSIVE SKILL-FUNKTIONEN
+# ══════════════════════════════════════════════════════════════════════════
+
+_V3_HINWEIS = "⚠️ Diese Funktion erfordert OpenPhoenix ERP V3. Aktuell ist V2 verbunden."
+
+
+@erp_skill
+def erp_angebote_liste(session, status: str = "") -> str:
+    """
+    Listet alle Angebote (nur OpenPhoenix V3).
+    Status-Filter optional: Entwurf, Offen, Angenommen, Abgelehnt, Abgelaufen
+    Beispiel: erp_angebote_liste()
+    Beispiel: erp_angebote_liste(status="Offen")
+    """
+    if not _is_v3():
+        return _V3_HINWEIS
+    from core.services.angebote_service import AngebotsService
+
+    status_filter = [status] if status else None
+    alle = AngebotsService().alle(session, status_filter=status_filter)
+    if not alle:
+        return f"📋 Keine Angebote{' mit Status ' + status if status else ''} gefunden."
+
+    zeilen = [f"📄 {len(alle)} Angebot(e):\n"]
+    for a in alle:
+        zeilen.append(
+            f"  [{a.angebotsnummer}] {a.kunde_display} – "
+            f"{_fmt_euro(a.summe_brutto)} – {a.status} – "
+            f"gültig bis {_fmt_datum(a.gueltig_bis)}"
+        )
+    return "\n".join(zeilen)
+
+
+@erp_skill
+def erp_belege_liste(session, status: str = "") -> str:
+    """
+    Listet alle Eingangsrechnungen/Belege (nur OpenPhoenix V3).
+    Status-Filter optional: Offen, Bezahlt, Überfällig
+    Beispiel: erp_belege_liste()
+    Beispiel: erp_belege_liste(status="Offen")
+    """
+    if not _is_v3():
+        return _V3_HINWEIS
+    from core.services.belege_service import BelegeService
+
+    alle = BelegeService().alle_belege(session, zahlungsstatus=status)
+    if not alle:
+        return f"📋 Keine Belege{' mit Status ' + status if status else ''} gefunden."
+
+    gesamt = sum(float(b.betrag_brutto or 0) for b in alle)
+    zeilen = [f"🧾 {len(alle)} Beleg(e) – gesamt {_fmt_euro(gesamt)}:\n"]
+    for b in alle[:20]:
+        zeilen.append(
+            f"  [{b.belegnummer}] {b.lieferant or '–'} – "
+            f"{_fmt_euro(b.betrag_brutto)} – {b.zahlungsstatus} – "
+            f"Datum {b.datum}"
+        )
+    if len(alle) > 20:
+        zeilen.append(f"  ... und {len(alle)-20} weitere")
+    return "\n".join(zeilen)
+
+
+def erp_datev_exportieren(von: str = "", bis: str = "", ausgabe_pfad: str = "") -> str:
+    """
+    Exportiert Buchungen im DATEV-CSV-Format für den Steuerberater (nur V3).
+    von/bis: Zeitraum als TT.MM.JJJJ – Standard: aktuelles Jahr
+    ausgabe_pfad optional – Standard: ERP-Verzeichnis/datev_export/
+    Beispiel: erp_datev_exportieren()
+    Beispiel: erp_datev_exportieren(von="01.01.2026", bis="31.03.2026", ausgabe_pfad="C:/Steuerberater")
+    """
+    if not _erp_einbinden():
+        return "❌ ERP nicht verbunden."
+    if not _is_v3():
+        return _V3_HINWEIS
+    try:
+        from core.db.engine import db
+        from core.services.datev_service import DatevService
+
+        heute = date.today()
+        von  = von  or f"01.01.{heute.year}"
+        bis  = bis  or f"31.12.{heute.year}"
+        ziel = ausgabe_pfad or os.path.join(_erp_pfad(), "datev_export")
+        os.makedirs(ziel, exist_ok=True)
+
+        db.initialize(_db_url())
+        with db.session() as session:
+            ergebnis = DatevService().exportieren(session, von=von, bis=bis)
+            csv_pfad = os.path.join(ziel, ergebnis.dateiname)
+            with open(csv_pfad, "wb") as f:
+                f.write(ergebnis.csv_bytes)
+            return (f"✅ DATEV-Export erfolgreich!\n"
+                    f"📂 Datei:    {csv_pfad}\n"
+                    f"📅 Zeitraum: {von} – {bis}\n"
+                    f"📄 Buchungen: {ergebnis.anzahl_buchungen}\n"
+                    f"💰 AR-Summe: {_fmt_euro(ergebnis.summe_ar)} | "
+                    f"ER-Summe: {_fmt_euro(ergebnis.summe_er)}")
+    except Exception as e:
+        return f"❌ Fehler beim DATEV-Export: {e}"
+
+
+def erp_backup_erstellen(ausgabe_pfad: str = "") -> str:
+    """
+    Erstellt ein vollständiges Backup (Datenbank + Konfiguration) als ZIP (nur V3).
+    ausgabe_pfad optional – Standard: ERP-Verzeichnis/backups/
+    Beispiel: erp_backup_erstellen()
+    Beispiel: erp_backup_erstellen(ausgabe_pfad="G:/Backups/ERP")
+    """
+    if not _erp_einbinden():
+        return "❌ ERP nicht verbunden."
+    if not _is_v3():
+        return _V3_HINWEIS
+    try:
+        from core.services.backup_service import erstelle_backup, vorgeschlagener_dateiname
+
+        ziel_dir = ausgabe_pfad or os.path.join(_erp_pfad(), "backups")
+        os.makedirs(ziel_dir, exist_ok=True)
+        ziel_datei = os.path.join(ziel_dir, vorgeschlagener_dateiname())
+        pfad = erstelle_backup(ziel_datei)
+        groesse = os.path.getsize(pfad) / 1024
+        return (f"✅ Backup erstellt!\n"
+                f"📦 Datei: {pfad}\n"
+                f"📊 Größe: {groesse:.1f} KB")
+    except Exception as e:
+        return f"❌ Backup fehlgeschlagen: {e}"
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # SKILL-REGISTRIERUNG
 # ══════════════════════════════════════════════════════════════════════════
 
 AVAILABLE_SKILLS = [
     erp_pfad_setzen,
+    erp_version_info,
     erp_status,
     erp_offene_rechnungen,
     erp_ueberfaellige_pruefen,
@@ -657,4 +807,9 @@ AVAILABLE_SKILLS = [
     erp_lager_status,
     erp_kpi_bericht,
     erp_kunde_info,
+    # V3-exklusiv
+    erp_angebote_liste,
+    erp_belege_liste,
+    erp_datev_exportieren,
+    erp_backup_erstellen,
 ]

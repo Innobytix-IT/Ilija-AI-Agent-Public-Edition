@@ -36,8 +36,11 @@ kernel_lock = threading.Lock()
 
 def get_kernel() -> Kernel:
     global kernel
+    # Double-checked locking: Thread-sichere Initialisierung
     if kernel is None:
-        kernel = Kernel()
+        with kernel_lock:
+            if kernel is None:
+                kernel = Kernel()
     return kernel
 
 
@@ -192,9 +195,11 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not user_input.strip():
         return
     await ctx.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    # WICHTIG: Nur Kernel-Referenz im Lock holen — k.chat() AUSSERHALB des Locks!
+    # k.chat() kann 10–60s dauern; Lock würde sonst das gesamte System blockieren.
     with kernel_lock:
-        k        = get_kernel()
-        response = k.chat(user_input)
+        k = get_kernel()
+    response = k.chat(user_input)
     if len(response) > 4000:
         for i in range(0, len(response), 4000):
             await update.message.reply_text(response[i:i+4000])
@@ -216,7 +221,7 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📝 Erkannt: {transcript}")
         with kernel_lock:
             k = get_kernel()
-            response = k.chat(transcript)
+        response = k.chat(transcript)
         await update.message.reply_text(response)
     finally:
         if os.path.exists(tmp_path): os.unlink(tmp_path)
@@ -255,8 +260,7 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     
     with kernel_lock:
         k = get_kernel()
-        response = k.chat(prompt)
-    
+    response = k.chat(prompt)
     # FIX: Parse_mode entfernt um Markdown-Fehler bei Unterstrichen zu vermeiden
     await update.message.reply_text(f"📸 Scan gespeichert als {filename}\n\n{response}")
 

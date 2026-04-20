@@ -252,7 +252,9 @@ fi
 
 # Ordner & .env
 mkdir -p data/dms/import data/dms/archiv data/uploads data/notizen memory skills/.skill_backups
+mkdir -p data/workflows data/schedules
 touch data/dms/import/.gitkeep data/dms/archiv/.gitkeep memory/.gitkeep
+touch data/workflows/.gitkeep data/schedules/.gitkeep
 
 if [ ! -f ".env" ]; then
     cp .env.example .env
@@ -367,6 +369,12 @@ fi
 # =============================================================================
 print_header "SCHRITT 6/7 – Was kann Ilija Public Edition?"
 
+echo -e "${BOLD}  ⚡  Workflow Studio (n8n-ähnlich)${RESET}"
+echo "     Automatisierungen visuell per Drag & Drop erstellen"
+echo "     22 Node-Typen: KI-Chat, Skills, Telegram, Gmail, Google Docs,"
+echo "     Zeitpläne, Webhooks, HTTP-Calls, Bedingungen, Schleifen u.v.m."
+echo "     33 Beispiel-Workflows direkt einsatzbereit"
+echo "     Aufruf unter: http://localhost:5000"; echo ""
 echo -e "${BOLD}  🗂  DMS – Dokumentenmanagementsystem${RESET}"
 echo "     Dokumente automatisch per KI kategorisieren & archivieren"
 echo "     PDF, Word, Excel, Bilder, Scans – alle gängigen Formate"
@@ -379,8 +387,9 @@ echo -e "${BOLD}  📱  Telegram-Fernsteuerung${RESET}"
 echo "     Steuere Ilija von überall – auch Dokumente per Telegram senden"; echo ""
 echo -e "${BOLD}  🔍  Internet-Recherche${RESET}"
 echo "     DuckDuckGo-Suche, Wikipedia, Webseiten lesen"; echo ""
-echo -e "${BOLD}  🌐  Web-Interface${RESET}"
-echo "     Moderner Browser-Chat – auch auf dem Handy nutzbar"; echo ""
+echo -e "${BOLD}  🌐  Web-Interface / Chat${RESET}"
+echo "     Moderner Browser-Chat – auch auf dem Handy nutzbar"
+echo "     Aufruf unter: http://localhost:5000/chat"; echo ""
 divider
 read -rp "  Drücke ENTER um fortzufahren..." _
 

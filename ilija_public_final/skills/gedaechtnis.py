@@ -4,6 +4,7 @@ Nutzt ChromaDB + Sentence-Transformers für semantische Suche
 """
 
 import os
+import threading
 import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
@@ -15,22 +16,27 @@ COLLECTION = "ilija_memory"
 _client     = None
 _collection = None
 _model      = None
+_init_lock  = threading.Lock()   # Verhindert Mehrfach-Initialisierung in parallelen Threads
 
 
 def _init():
     global _client, _collection, _model
     if _collection is not None:
         return
-    os.makedirs(MEMORY_DIR, exist_ok=True)
-    _client = chromadb.PersistentClient(
-        path=MEMORY_DIR,
-        settings=Settings(anonymized_telemetry=False)
-    )
-    _collection = _client.get_or_create_collection(
-        name=COLLECTION,
-        metadata={"hnsw:space": "cosine"}
-    )
-    _model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+    with _init_lock:
+        # Double-checked locking: anderer Thread könnte zwischen erstem Check und Lock fertig sein
+        if _collection is not None:
+            return
+        os.makedirs(MEMORY_DIR, exist_ok=True)
+        _client = chromadb.PersistentClient(
+            path=MEMORY_DIR,
+            settings=Settings(anonymized_telemetry=False)
+        )
+        _collection = _client.get_or_create_collection(
+            name=COLLECTION,
+            metadata={"hnsw:space": "cosine"}
+        )
+        _model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
 
 
 def gedaechtnis_speichern(information: str, kategorie: str = "allgemein") -> str:

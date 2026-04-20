@@ -1,24 +1,17 @@
 """
-Würfelt eine Zahl zwischen 1 und max
-
-Auto-generiert durch skill_erstellen
-Skill-Name: wuerfeln
+wuerfeln.py – Würfel-Skill für Ilija Public Edition
 """
-
-# Standard-Imports für Skills
 import random
-import time
-import math
-import datetime
-import os
-import subprocess
-import json
-from typing import Optional, List, Dict, Any
 
-# Haupt-Skill-Code
-def wuerfeln(max: int = 20) -> int:
-    import random
-    return random.randint(1, max)
 
-# Registrierung für den SkillManager
+def wuerfeln(max: int = 6) -> str:
+    """
+    Würfelt eine zufällige Zahl zwischen 1 und dem angegebenen Maximum.
+    Standard: 6-seitiger Würfel. Für D20 einfach max=20 angeben.
+    Beispiel: wuerfeln(max=20)
+    """
+    ergebnis = random.randint(1, max)
+    return f"🎲 Gewürfelt (1–{max}): **{ergebnis}**"
+
+
 AVAILABLE_SKILLS = [wuerfeln]

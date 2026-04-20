@@ -25,9 +25,18 @@ sentence-transformers>=2.2.0
 # ── Telegram ─────────────────────────────────────────────
 python-telegram-bot>=20.0
 
-# ── WhatsApp Web ─────────────────────────────────────────
+# ── WhatsApp Web / Outlook (Selenium-Automatisierung) ────────
 selenium>=4.0.0
 webdriver-manager>=4.0.0
+
+# ── Google Kalender (OAuth2 – credentials.json im Repo) ──────────
+google-auth>=2.0.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.0.0
+
+# ── Web-Suche ────────────────────────────────────────────
+ddgs>=9.0.0
 
 # ── Dokument-Verarbeitung ────────────────────────────────
 beautifulsoup4>=4.12.0

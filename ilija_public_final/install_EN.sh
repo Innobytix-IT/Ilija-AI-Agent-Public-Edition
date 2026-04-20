@@ -289,6 +289,10 @@ fi
 
 # Create folders & prepare .env
 mkdir -p memory skills/.skill_backups
+mkdir -p data/dms/import data/dms/archiv data/uploads data/notizen
+mkdir -p data/workflows data/schedules
+touch data/dms/import/.gitkeep data/dms/archiv/.gitkeep memory/.gitkeep
+touch data/workflows/.gitkeep data/schedules/.gitkeep
 
 if [ ! -f ".env" ]; then
     cp .env.example .env 2>/dev/null || echo "ANONYMIZED_TELEMETRY=False" > .env
@@ -463,6 +467,12 @@ echo -e "  ${BOLD}What is Ilija?${RESET}"; echo ""
 echo "  Ilija is an autonomous AI agent – not a simple chatbot."
 echo "  He thinks independently, plans his steps and teaches himself new skills."
 echo ""; divider; echo ""
+echo -e "${BOLD}  ⚡  Workflow Studio (n8n-like)${RESET}"
+echo "  Build automations visually with drag & drop."
+echo "  22 node types: AI Chat, Skills, Telegram, Gmail, Google Docs,"
+echo "  Schedules, Webhooks, HTTP calls, conditions, loops and more."
+echo "  33 example workflows included and ready to use."
+echo "  Open at: http://localhost:5000"; echo ""
 echo -e "${BOLD}  Long-Term Memory${RESET}"
 echo "  Ilija remembers everything – even after a restart."
 echo "  Example: 'My name is John' – Ilija will know this next time."; echo ""
@@ -473,8 +483,9 @@ echo -e "${BOLD}  WhatsApp Assistant${RESET}"
 echo "  Monitors chats, schedules appointments, takes messages."; echo ""
 echo -e "${BOLD}  Telegram Remote Control${RESET}"
 echo "  Control Ilija from anywhere – voice, files, commands."; echo ""
-echo -e "${BOLD}  Web Interface${RESET}"
-echo "  Modern chat UI – works on mobile too."; echo ""
+echo -e "${BOLD}  Web Interface / Chat${RESET}"
+echo "  Modern chat UI – works on mobile too."
+echo "  Open at: http://localhost:5000/chat"; echo ""
 echo -e "${BOLD}  Multi-Provider: Claude -> GPT -> Gemini -> Ollama${RESET}"
 echo "  Ilija automatically selects the best available model."; echo ""
 divider; echo ""

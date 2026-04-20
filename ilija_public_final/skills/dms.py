@@ -328,6 +328,11 @@ ERGEBNIS: Hauptkategorie|Unterkategorie|Jahr|Absender_Typ_Datum{endung}"""
 # ── Öffentliche Skill-Funktionen ──────────────────────────────
 
 def dms_import_scan() -> str:
+    """
+    Zeigt alle Dateien im Import-Ordner die auf Einsortierung warten.
+    Listet Dateinamen und Dateitypen auf ohne KI zu verwenden.
+    Beispiel: dms_import_scan()
+    """
     _init_dirs()
     import_dir = _get_import_dir()
     dateien = [
@@ -556,6 +561,11 @@ def _entferne_aus_meta(meta: dict, rel_pfad: str):
 
 
 def dms_suchen(suchbegriff: str) -> str:
+    """
+    Durchsucht das DMS-Archiv nach Dateien die den Suchbegriff im Namen enthalten.
+    Gibt Dateipfad und Größe aller Treffer zurück.
+    Beispiel: dms_suchen(suchbegriff="Rechnung 2024")
+    """
     _init_dirs()
     archiv_dir = _get_archiv_dir()
     treffer    = []
@@ -573,6 +583,10 @@ def dms_suchen(suchbegriff: str) -> str:
 
 
 def dms_archiv_uebersicht() -> str:
+    """
+    Zeigt eine kompakte Übersicht aller Kategorien im DMS-Archiv mit Dokumentenanzahl.
+    Beispiel: dms_archiv_uebersicht()
+    """
     _init_dirs()
     archiv_dir = _get_archiv_dir()
     struktur   = {}
@@ -592,6 +606,10 @@ def dms_archiv_uebersicht() -> str:
 
 
 def dms_stats() -> dict:
+    """
+    Gibt detaillierte Statistiken über das DMS-Archiv zurück: Gesamtanzahl, Größe in MB, Kategorien, Import-Warteschlange.
+    Beispiel: dms_stats()
+    """
     _init_dirs()
     archiv_dir   = _get_archiv_dir()
     import_dir   = _get_import_dir()
@@ -627,6 +645,11 @@ def dms_stats() -> dict:
 
 
 def dms_archiv_baum() -> list:
+    """
+    Gibt die vollständige Ordnerstruktur des DMS-Archivs als verschachtelte Liste zurück.
+    Nützlich um alle Kategorien und Unterkategorien auf einen Blick zu sehen.
+    Beispiel: dms_archiv_baum()
+    """
     _init_dirs()
     archiv_dir = _get_archiv_dir()
     baum       = {}
@@ -670,6 +693,11 @@ def dms_archiv_baum() -> list:
 
 
 def dms_pfad_setzen(archiv_pfad: str, import_pfad: str = "", passwort: str = "", passwort_neu: str = "") -> str:
+    """
+    Legt die Archiv- und Import-Pfade für das DMS fest. Einmalig ausführen beim ersten Start.
+    Optional: Passwortschutz für sensible Operationen aktivieren.
+    Beispiel: dms_pfad_setzen(archiv_pfad="/home/user/archiv", import_pfad="/home/user/import")
+    """
     cfg = _get_config()
     if cfg.get("passwort_aktiv") and cfg.get("passwort_hash"):
         if not _pruefen_passwort(passwort):
@@ -700,6 +728,10 @@ def dms_pfad_setzen(archiv_pfad: str, import_pfad: str = "", passwort: str = "",
 
 
 def dms_passwort_entfernen(passwort: str) -> str:
+    """
+    Entfernt den Passwortschutz vom DMS-Archiv. Aktuelles Passwort zur Bestätigung erforderlich.
+    Beispiel: dms_passwort_entfernen(passwort="meinPasswort")
+    """
     cfg = _get_config()
     if cfg.get("passwort_aktiv"):
         if not _pruefen_passwort(passwort):
