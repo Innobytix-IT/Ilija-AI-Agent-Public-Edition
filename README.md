@@ -1,4 +1,4 @@
-# Ilija – Public Edition
+# Ilija – Public Edition v2.0
 
 > Persoenlicher KI-Assistent fuer Bueros und Kleinbetriebe:  
 > Dokumentenverwaltung · Telefon-Assistent (FritzBox) · WhatsApp · Telegram · Web-Interface · Workflow Studio
