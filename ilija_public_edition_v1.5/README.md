@@ -1,4 +1,4 @@
-# 🤖 Ilija – Public Workflow-Edition (LINUX)
+# 🤖 Ilija – Public Workflow-Edition v1.5 (LINUX)
 (English version below)
 
 > Persönlicher KI-Assistent für Automatisierung, Dokumentenverwaltung, Kommunikation und Organisation.
