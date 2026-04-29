@@ -1,0 +1,51 @@
+# ══════════════════════════════════════════════════════════════
+#  Ilija AI Agent — .gitignore
+# ══════════════════════════════════════════════════════════════
+
+# ── Credentials & Secrets ────────────────────────────────────
+.env
+data/gmail/token.json
+data/google_docs/token.json
+data/google_drive/token.json
+data/google_kalender/token.json
+data/google_kalender/credentials.json
+data/telegram/telegram_config.json
+data/email/email_config.json
+data/whatsapp/whatsapp_config.json
+data/dms/dms_config.json
+
+# ── Persönliche Laufzeit-Daten ───────────────────────────────
+data/local_calendar_events.json
+data/kalender_sync.json
+data/dms/meta.json
+data/whatsapp_log.txt
+data/whatsapp_nachrichten.txt
+data/whatsapp_kalender.txt
+data/schedules/active.json
+data/telegram/last_update_id.json
+data/notizen/telefon_notizen.txt
+data/notizen/notizen.txt
+data/notizen/notizen1.txt
+data/outlook_profil/
+
+# ── Persönliche Workflows ────────────────────────────────────
+data/workflows/wf_*.json
+
+# ── ChromaDB Memory (benutzerspezifisch) ─────────────────────
+memory/
+
+# ── Python-Cache ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# ── Backup-Dateien ───────────────────────────────────────────
+*.bak
+*.orig
+
+# ── IDE & OS ─────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
