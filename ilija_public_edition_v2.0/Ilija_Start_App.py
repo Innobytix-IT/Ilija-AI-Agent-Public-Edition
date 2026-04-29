@@ -43,6 +43,15 @@ def get_base_dir():
 def get_env_path():
     return os.path.join(get_base_dir(), '.env')
 
+def _ensure_env_exists():
+    env_path = get_env_path()
+    if not os.path.exists(env_path):
+        example = os.path.join(get_base_dir(), '.env.example')
+        if os.path.exists(example):
+            shutil.copy(example, env_path)
+
+_ensure_env_exists()
+
 def get_data_dir():
     d = os.path.join(get_base_dir(), 'data')
     os.makedirs(d, exist_ok=True)
