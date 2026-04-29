@@ -1,0 +1,6 @@
+{
+  "archiv_pfad": "data/dms/archiv",
+  "import_pfad": "data/dms/import",
+  "passwort_hash": "",
+  "passwort_aktiv": false
+}
